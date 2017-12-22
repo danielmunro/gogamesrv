@@ -1,6 +1,7 @@
 package gogamesrv
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 )
@@ -44,7 +45,7 @@ func (s *Server) startBlockingClientInputListener() {
 
 func (s *Server) broadcast(c *client) {
 	s.forAllClients(func(client *client) {
-		client.send(getSenderName(c, client) + " said, '" + c.message + "'\n")
+		client.send(getPayload(c, client))
 	})
 }
 
@@ -67,9 +68,17 @@ func (s *Server) forAllClients(f func(*client)) {
 	}
 }
 
+func getPayload(sender *client, receiver *client) string {
+	return fmt.Sprintf(
+		`{sender: "%s", message: "%s"}`,
+		getSenderName(sender, receiver),
+		sender.message,
+	)
+}
+
 func getSenderName(sender *client, receiver *client) string {
 	if sender == receiver {
-		return "You"
+		return "you"
 	}
 
 	return sender.conn.RemoteAddr().String()
