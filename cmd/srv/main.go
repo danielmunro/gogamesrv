@@ -1,6 +1,8 @@
 package main
 
+import "github.com/danielmunro/gogamesrv"
+
 func main() {
-	s := NewServer()
-	s.listen(5555)
+	s := gogamesrv.NewServer()
+	s.Listen(5555)
 }

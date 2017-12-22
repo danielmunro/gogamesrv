@@ -5,32 +5,72 @@ import (
 	"strconv"
 )
 
-type server struct {
-	clients []*client
+// Server is the combination of a port listener and a proxy for clients.
+type Server struct {
+	clients  []*client
+	listener chan *client
 }
 
-func NewServer() *server {
-	return &server{}
-}
-
-func (s *server) listen(port int) error {
-	ln, err := net.Listen("tcp", ":"+strconv.Itoa(port))
-	if err != nil {
-		return err
+// NewServer creates a new server instance.
+func NewServer() *Server {
+	return &Server{
+		listener: make(chan *client),
 	}
-	defer ln.Close()
-	//updater := make(chan *client)
+}
 
+// Listen starts the two main threads of the server: the client input listener,
+// and the new connection listener.
+func (s *Server) Listen(port int) {
+	ln, _ := net.Listen("tcp", ":"+strconv.Itoa(port))
+	defer ln.Close()
+	go s.startBlockingClientInputListener()
+	s.startBlockingNewClientLoop(ln)
+}
+
+func (s *Server) startBlockingNewClientLoop(ln net.Listener) {
 	for {
 		go s.addClient(newClient(s.accept(ln)))
 	}
 }
 
-func (s *server) accept(l net.Listener) net.Conn {
+func (s *Server) startBlockingClientInputListener() {
+	for {
+		select {
+		case c := <-s.listener:
+			s.broadcast(c)
+		}
+	}
+}
+
+func (s *Server) broadcast(c *client) {
+	s.forAllClients(func(client *client) {
+		client.send(getSenderName(c, client) + " said, '" + c.message + "'\n")
+	})
+}
+
+func (s *Server) accept(l net.Listener) net.Conn {
 	conn, _ := l.Accept()
 	return conn
 }
 
-func (s *server) addClient(c *client) {
+func (s *Server) addClient(c *client) {
 	s.clients = append(s.clients, c)
+	for {
+		c.read()
+		s.listener <- c
+	}
+}
+
+func (s *Server) forAllClients(f func(*client)) {
+	for _, client := range s.clients {
+		f(client)
+	}
+}
+
+func getSenderName(sender *client, receiver *client) string {
+	if sender == receiver {
+		return "You"
+	}
+
+	return sender.conn.RemoteAddr().String()
 }
